@@ -25,6 +25,7 @@ from langchain.memory.chat_message_histories import (
 from langchain.prompts.chat import MessagesPlaceholder
 from langchain.schema import BaseChatMessageHistory, BaseLanguageModel
 from langchain.tools import BaseTool, StructuredTool
+from langchain.callbacks.manager import Callbacks
 
 from codeinterpreterapi.agents import OpenAIFunctionsAgent
 from codeinterpreterapi.chains import (
@@ -98,7 +99,7 @@ class CodeInterpreterSession:
         ]
 
     def _choose_llm(
-        self, model: str = "gpt-4", openai_api_key: Optional[str] = None, **kwargs
+        self, model: str = "gpt-4", openai_api_key: Optional[str] = None, streaming=False, **kwargs
     ) -> BaseChatModel:
         if "gpt" in model:
             openai_api_key = (
@@ -137,6 +138,7 @@ class CodeInterpreterSession:
                     openai_api_key=openai_api_key,
                     max_retries=3,
                     request_timeout=60 * 3,
+                    streaming=streaming,
                 )  # type: ignore
         elif "claude" in model:
             return ChatAnthropic(model=model)
@@ -384,13 +386,14 @@ class CodeInterpreterSession:
         user_msg: str,
         files: list[File] = [],
         detailed_error: bool = False,
+        callbacks: Callbacks = None,
     ) -> CodeInterpreterResponse:
         """Generate a Code Interpreter response based on the user's input."""
         user_request = UserRequest(content=user_msg, files=files)
         try:
             self._input_handler(user_request)
             assert self.agent_executor, "Session not initialized."
-            response = self.agent_executor.run(input=user_request.content)
+            response = self.agent_executor.run(input=user_request.content, callbacks=callbacks)
             return self._output_handler(response)
         except Exception as e:
             if self.verbose:
@@ -428,13 +431,14 @@ class CodeInterpreterSession:
         user_msg: str,
         files: list[File] = [],
         detailed_error: bool = False,
+        callbacks: Callbacks = None,
     ) -> CodeInterpreterResponse:
         """Generate a Code Interpreter response based on the user's input."""
         user_request = UserRequest(content=user_msg, files=files)
         try:
             await self._ainput_handler(user_request)
             assert self.agent_executor, "Session not initialized."
-            response = await self.agent_executor.arun(input=user_request.content)
+            response = await self.agent_executor.arun(input=user_request.content, callbacks=callbacks)
             return await self._aoutput_handler(response)
         except Exception as e:
             if self.verbose:
